@@ -725,15 +725,16 @@
  #include "chrome/browser/ui/chrome_pages.h"
  #include "chrome/browser/ui/scoped_tabbed_browser_displayer.h"
  #include "chrome/common/buildflags.h"
-@@ -70,7 +65,6 @@
+@@ -69,8 +64,6 @@
+ #include "components/prefs/pref_member.h"
  #include "components/prefs/pref_service.h"
  #include "components/safe_browsing/buildflags.h"
- #include "components/safe_browsing/core/browser/download/download_stats.h"
+-#include "components/safe_browsing/core/browser/download/download_stats.h"
 -#include "components/safe_browsing/core/file_type_policies.h"
  #include "components/services/quarantine/public/mojom/quarantine.mojom.h"
  #include "components/services/quarantine/quarantine_impl.h"
  #include "content/public/browser/browser_task_traits.h"
-@@ -129,7 +123,6 @@ using content::DownloadManager;
+@@ -129,7 +122,6 @@ using content::DownloadManager;
  using download::DownloadItem;
  using download::DownloadPathReservationTracker;
  using download::PathValidationResult;
@@ -741,7 +742,7 @@
  using ConnectionType = net::NetworkChangeNotifier::ConnectionType;
  
  namespace {
-@@ -864,19 +857,6 @@ ChromeDownloadManagerDelegate::Applicati
+@@ -864,19 +856,6 @@ ChromeDownloadManagerDelegate::Applicati
    return std::string(chrome::kApplicationClientIDStringForAVScanning);
  }
  
@@ -761,7 +762,7 @@
  void ChromeDownloadManagerDelegate::GetMixedContentStatus(
      download::DownloadItem* download,
      const base::FilePath& virtual_path,
-@@ -1564,9 +1544,6 @@ void ChromeDownloadManagerDelegate::Mayb
+@@ -1564,9 +1543,6 @@ void ChromeDownloadManagerDelegate::Mayb
                                                      show_download_in_folder);
    }
  #endif
@@ -1457,6 +1458,17 @@
  // Verifies prefs are registered correctly.
  TEST(DownloadPrefsTest, RegisterPrefs) {
    content::BrowserTaskEnvironment task_environment_;
+--- a/chrome/browser/download/download_stats.cc
++++ b/chrome/browser/download/download_stats.cc
+@@ -26,8 +26,6 @@ void RecordDangerousDownloadWarningShown
+     bool has_user_gesture) {
+   base::UmaHistogramEnumeration("Download.ShowedDownloadWarning", danger_type,
+                                 download::DOWNLOAD_DANGER_TYPE_MAX);
+-  safe_browsing::RecordDangerousDownloadWarningShown(
+-      danger_type, file_path, is_https, has_user_gesture);
+ }
+ 
+ void RecordOpenedDangerousConfirmDialog(
 --- a/chrome/browser/download/download_target_determiner.cc
 +++ b/chrome/browser/download/download_target_determiner.cc
 @@ -28,7 +28,6 @@
@@ -2544,14 +2556,27 @@
    friend void welcome::JoinOnboardingGroup(Profile* profile);
 --- a/chrome/browser/metrics/chrome_metrics_service_client.cc
 +++ b/chrome/browser/metrics/chrome_metrics_service_client.cc
-@@ -55,7 +55,6 @@
+@@ -55,8 +55,6 @@
  #include "chrome/browser/privacy_budget/privacy_budget_prefs.h"
  #include "chrome/browser/privacy_budget/privacy_budget_ukm_entry_filter.h"
  #include "chrome/browser/profiles/profile_manager.h"
 -#include "chrome/browser/safe_browsing/certificate_reporting_metrics_provider.h"
- #include "chrome/browser/safe_browsing/metrics/safe_browsing_metrics_provider.h"
+-#include "chrome/browser/safe_browsing/metrics/safe_browsing_metrics_provider.h"
  #include "chrome/browser/sync/device_info_sync_service_factory.h"
  #include "chrome/browser/sync/profile_sync_service_factory.h"
+ #include "chrome/browser/tracing/background_tracing_metrics_provider.h"
+@@ -698,11 +696,6 @@ void ChromeMetricsServiceClient::Registe
+   metrics_service_->RegisterMetricsProvider(MakeDemographicMetricsProvider(
+       metrics::MetricsLogUploader::MetricServiceType::UMA));
+ 
+-  // TODO(crbug.com/1207574): Add metrics registration for WebView, iOS and
+-  // WebLayer.
+-  metrics_service_->RegisterMetricsProvider(
+-      std::make_unique<safe_browsing::SafeBrowsingMetricsProvider>());
+-
+ #if defined(OS_ANDROID)
+   metrics_service_->RegisterMetricsProvider(
+       std::make_unique<metrics::AndroidMetricsProvider>());
 --- a/chrome/browser/net/system_network_context_manager.cc
 +++ b/chrome/browser/net/system_network_context_manager.cc
 @@ -25,7 +25,6 @@
@@ -2888,6 +2913,28 @@
  
  SecurityStateTabHelper::SecurityStateTabHelper(
      content::WebContents* web_contents)
+--- a/chrome/browser/subresource_filter/chrome_content_subresource_filter_throttle_manager_factory.cc
++++ b/chrome/browser/subresource_filter/chrome_content_subresource_filter_throttle_manager_factory.cc
+@@ -7,7 +7,6 @@
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/subresource_filter/subresource_filter_profile_context_factory.h"
+-#include "components/safe_browsing/core/db/database_manager.h"
+ #include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
+ #include "components/subresource_filter/content/browser/ruleset_service.h"
+ 
+@@ -24,10 +23,7 @@ GetDatabaseManagerFromSafeBrowsingServic
+ 
+ void CreateSubresourceFilterThrottleManagerForWebContents(
+     content::WebContents* web_contents) {
+-  subresource_filter::RulesetService* ruleset_service =
+-      g_browser_process->subresource_filter_ruleset_service();
+-  subresource_filter::VerifiedRulesetDealer::Handle* dealer =
+-      ruleset_service ? ruleset_service->GetRulesetDealer() : nullptr;
++  subresource_filter::VerifiedRulesetDealer::Handle* dealer = nullptr;
+   subresource_filter::ContentSubresourceFilterThrottleManager::
+       CreateForWebContents(
+           web_contents,
 --- a/chrome/browser/ui/BUILD.gn
 +++ b/chrome/browser/ui/BUILD.gn
 @@ -379,7 +379,6 @@ static_library("ui") {
@@ -4377,10 +4424,31 @@
    if (auto filtering_throttle =
 --- a/testing/variations/fieldtrial_testing_config.json
 +++ b/testing/variations/fieldtrial_testing_config.json
-@@ -6820,174 +6820,6 @@
+@@ -6799,195 +6799,6 @@
              ]
          }
      ],
+-    "SafeBrowsingCSDRequestWithToken": [
+-        {
+-            "platforms": [
+-                "android",
+-                "android_weblayer",
+-                "chromeos",
+-                "chromeos_lacros",
+-                "linux",
+-                "mac",
+-                "windows"
+-            ],
+-            "experiments": [
+-                {
+-                    "name": "Enabled",
+-                    "enable_features": [
+-                        "SafeBrowsingCSDRequestWithToken"
+-                    ]
+-                }
+-            ]
+-        }
+-    ],
 -    "SafeBrowsingDelayedWarnings": [
 -        {
 -            "platforms": [
@@ -4552,7 +4620,7 @@
      "ScrollResamplingRollout": [
          {
              "platforms": [
-@@ -7206,8 +7038,7 @@
+@@ -7206,8 +7017,7 @@
                      "enable_features": [
                          "OmniboxUIExperimentElideToRegistrableDomain",
                          "OmniboxUIExperimentHideSteadyStateUrlPathQueryAndRefOnInteraction",
@@ -4562,7 +4630,7 @@
                      ]
                  }
              ]
-@@ -8601,10 +8432,7 @@
+@@ -8601,10 +8411,7 @@
              ],
              "experiments": [
                  {
