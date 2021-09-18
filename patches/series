@@ -18,3 +18,4 @@ ungoogled-chromium/windows/windows-fix-clang-format-exe.patch
 ungoogled-chromium/windows/windows-disable-rlz.patch
 ungoogled-chromium/windows/windows-fix-command-ids.patch
 ungoogled-chromium/windows/windows-disable-download-warning-prompt.patch
+ungoogled-chromium/windows/windows-remove-unused-preferences-fields.patch

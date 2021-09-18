@@ -1,6 +1,18 @@
 # Compiling Chromium 78 spams the console with unknown warnings.
 # This can be stopped by adding "-Wno-unknown-warning-option" to the cflags.
 
+--- a/build/config/compiler/BUILD.gn
++++ b/build/config/compiler/BUILD.gn
+@@ -305,9 +305,6 @@ config("compiler") {
+   # Don't emit the GCC version ident directives, they just end up in the
+   # .comment section or debug info taking up binary size, and makes comparing
+   # .o files built with different compiler versions harder.
+-  if (!is_win || is_clang) {
+-    cflags += [ "-fno-ident" ]
+-  }
+ 
+   # In general, Windows is totally different, but all the other builds share
+   # some common compiler and linker configuration.
 --- a/build/config/win/BUILD.gn
 +++ b/build/config/win/BUILD.gn
 @@ -65,7 +65,8 @@ config("compiler") {
@@ -13,3 +25,14 @@
    }
  
    # Force C/C++ mode for the given GN detected file type. This is necessary
+--- a/chrome/browser/resources/tools/optimize_webui.py
++++ b/chrome/browser/resources/tools/optimize_webui.py
+@@ -179,7 +179,7 @@ def _bundle_v3(tmp_out_dir, in_path, out
+          (len(generated_paths))
+ 
+   for bundled_file in bundled_paths:
+-    with open(bundled_file, 'r') as f:
++    with open(bundled_file, 'r', encoding='utf-8') as f:
+       output = f.read()
+       assert "<if expr" not in output, \
+           'Unexpected <if expr> found in bundled output. Check that all ' + \

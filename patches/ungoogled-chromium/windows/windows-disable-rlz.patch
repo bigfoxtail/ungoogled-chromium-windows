@@ -1,6 +1,6 @@
 --- a/chrome/installer/setup/BUILD.gn
 +++ b/chrome/installer/setup/BUILD.gn
-@@ -42,7 +42,6 @@ if (is_win) {
+@@ -45,7 +45,6 @@ if (is_win) {
        "//components/crash/core/app:crash_export_thunks",
        "//components/crash/core/app:run_as_crashpad_handler",
        "//content/public/common:static_switches",
@@ -42,7 +42,7 @@
  // Removes all files from the installer directory. Returns false in case of an
  // error.
  bool RemoveInstallerFiles(const base::FilePath& installer_directory) {
-@@ -846,11 +828,6 @@ InstallStatus UninstallProduct(const Mod
+@@ -835,11 +817,6 @@ InstallStatus UninstallProduct(const Mod
      }
    }
  
@@ -53,4 +53,4 @@
 -
    auto_launch_util::DisableBackgroundStartAtLogin();
  
-   // If user-level chrome is self-destructing as a result of encountering a
+   base::FilePath chrome_proxy_exe(
