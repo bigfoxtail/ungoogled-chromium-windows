@@ -25,6 +25,28 @@
    }
  
    # Force C/C++ mode for the given GN detected file type. This is necessary
+--- a/chrome/browser/resources/downloads/item.js
++++ b/chrome/browser/resources/downloads/item.js
+@@ -321,8 +321,7 @@ Polymer({
+   computeIcon_() {
+     if (this.data) {
+       const dangerType = this.data.dangerType;
+-      if ((loadTimeData.getBoolean('requestsApVerdicts') &&
+-           dangerType === DangerType.UNCOMMON_CONTENT) ||
++      if (dangerType === DangerType.UNCOMMON_CONTENT ||
+           dangerType === DangerType.SENSITIVE_CONTENT_WARNING) {
+         return 'cr:warning';
+       }
+@@ -356,8 +355,7 @@ Polymer({
+   computeIconColor_() {
+     if (this.data) {
+       const dangerType = this.data.dangerType;
+-      if ((loadTimeData.getBoolean('requestsApVerdicts') &&
+-           dangerType === DangerType.UNCOMMON_CONTENT) ||
++      if (dangerType === DangerType.UNCOMMON_CONTENT ||
+           dangerType === DangerType.SENSITIVE_CONTENT_WARNING) {
+         return 'yellow';
+       }
 --- a/chrome/browser/resources/tools/optimize_webui.py
 +++ b/chrome/browser/resources/tools/optimize_webui.py
 @@ -179,7 +179,7 @@ def _bundle_v3(tmp_out_dir, in_path, out
