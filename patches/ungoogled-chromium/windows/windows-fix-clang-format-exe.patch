@@ -9,17 +9,17 @@
 +import os
 +
  
- def parse_options():
-     parser = optparse.OptionParser(usage="%prog [options] TASK...")
-@@ -59,6 +63,11 @@ def parse_options():
+ def parse_output_reldirs(reldirs):
+     required = ['core', 'modules']
+@@ -85,6 +89,11 @@ def main():
+         'union': bind_gen.generate_unions,
+     }
  
- 
- def main():
 +    # This fix build issue on Windows caused by missing google dependencies.
 +    if os.name == 'nt':
 +        if not os.path.exists('../../buildtools/win/clang-format.exe'):
 +            shutil.copy('../../third_party/llvm-build/Release+Asserts/bin/clang-format.exe', '../../buildtools/win')
 +
-     options, tasks = parse_options()
+     options = parse_options(dispatch_table.keys())
  
-     dispatch_table = {
+     output_reldirs = parse_output_reldirs(options.output_reldir)

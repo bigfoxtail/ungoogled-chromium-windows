@@ -3,7 +3,7 @@
 
 --- a/build/config/compiler/BUILD.gn
 +++ b/build/config/compiler/BUILD.gn
-@@ -305,9 +305,6 @@ config("compiler") {
+@@ -312,9 +312,6 @@ config("compiler") {
    # Don't emit the GCC version ident directives, they just end up in the
    # .comment section or debug info taking up binary size, and makes comparing
    # .o files built with different compiler versions harder.
@@ -13,9 +13,35 @@
  
    # In general, Windows is totally different, but all the other builds share
    # some common compiler and linker configuration.
+@@ -1223,19 +1220,12 @@ config("compiler_deterministic") {
+     # different build directory like "out/feature_a" and "out/feature_b" if
+     # we build same files with same compile flag.
+     # Other paths are already given in relative, no need to normalize them.
+-    if (is_nacl) {
+-      # TODO(https://crbug.com/1231236): Use -ffile-compilation-dir= here.
+-      cflags += [
+-        "-Xclang",
+-        "-fdebug-compilation-dir",
+-        "-Xclang",
+-        ".",
+-      ]
+-    } else {
+-      # -ffile-compilation-dir is an alias for both -fdebug-compilation-dir=
+-      # and -fcoverage-compilation-dir=.
+-      cflags += [ "-ffile-compilation-dir=." ]
+-    }
++    cflags += [
++      "-Xclang",
++      "-fdebug-compilation-dir",
++      "-Xclang",
++      ".",
++    ]
+     if (!is_win) {
+       # We don't use clang -cc1as on Windows (yet? https://crbug.com/762167)
+       asmflags = [ "-Wa,-fdebug-compilation-dir,." ]
 --- a/build/config/win/BUILD.gn
 +++ b/build/config/win/BUILD.gn
-@@ -65,7 +65,8 @@ config("compiler") {
+@@ -66,7 +66,8 @@ config("compiler") {
    ]
  
    if (is_clang) {
@@ -25,22 +51,22 @@
    }
  
    # Force C/C++ mode for the given GN detected file type. This is necessary
---- a/chrome/browser/resources/downloads/item.js
-+++ b/chrome/browser/resources/downloads/item.js
-@@ -321,8 +321,7 @@ Polymer({
-   computeIcon_() {
+--- a/chrome/browser/resources/downloads/item.ts
++++ b/chrome/browser/resources/downloads/item.ts
+@@ -314,8 +314,7 @@ export class DownloadsItemElement extend
+   private computeIcon_(): string {
      if (this.data) {
-       const dangerType = this.data.dangerType;
+       const dangerType = this.data.dangerType as DangerType;
 -      if ((loadTimeData.getBoolean('requestsApVerdicts') &&
 -           dangerType === DangerType.UNCOMMON_CONTENT) ||
 +      if (dangerType === DangerType.UNCOMMON_CONTENT ||
            dangerType === DangerType.SENSITIVE_CONTENT_WARNING) {
          return 'cr:warning';
        }
-@@ -356,8 +355,7 @@ Polymer({
-   computeIconColor_() {
+@@ -345,8 +344,7 @@ export class DownloadsItemElement extend
+   private computeIconColor_(): string {
      if (this.data) {
-       const dangerType = this.data.dangerType;
+       const dangerType = this.data.dangerType as DangerType;
 -      if ((loadTimeData.getBoolean('requestsApVerdicts') &&
 -           dangerType === DangerType.UNCOMMON_CONTENT) ||
 +      if (dangerType === DangerType.UNCOMMON_CONTENT ||
@@ -49,7 +75,7 @@
        }
 --- a/chrome/browser/resources/tools/optimize_webui.py
 +++ b/chrome/browser/resources/tools/optimize_webui.py
-@@ -179,7 +179,7 @@ def _bundle_v3(tmp_out_dir, in_path, out
+@@ -181,7 +181,7 @@ def _bundle_v3(tmp_out_dir, in_path, out
           (len(generated_paths))
  
    for bundled_file in bundled_paths:
