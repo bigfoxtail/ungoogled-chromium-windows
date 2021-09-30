@@ -39,6 +39,17 @@
      if (!is_win) {
        # We don't use clang -cc1as on Windows (yet? https://crbug.com/762167)
        asmflags = [ "-Wa,-fdebug-compilation-dir,." ]
+--- a/build/config/dcheck_always_on.gni
++++ b/build/config/dcheck_always_on.gni
+@@ -26,7 +26,7 @@ declare_args() {
+   # break badly but other platforms are reasonably stable, add "&& !is_mac"
+   # instead of reverting.
+   dcheck_always_on =
+-      (build_with_chromium && !is_official_build) || dcheck_is_configurable
++      false
+ }
+ 
+ declare_args() {
 --- a/build/config/win/BUILD.gn
 +++ b/build/config/win/BUILD.gn
 @@ -66,7 +66,8 @@ config("compiler") {

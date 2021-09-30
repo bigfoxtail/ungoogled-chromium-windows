@@ -255,12 +255,12 @@
        "spellchecker/test/spellcheck_mock_panel_host.cc",
 --- a/chrome/browser/DEPS
 +++ b/chrome/browser/DEPS
-@@ -260,12 +260,6 @@ include_rules = [
+@@ -260,12 +260,7 @@ include_rules = [
    "+components/reputation",
    "+components/reporting",
    "+components/rlz",
 -  "+components/safe_browsing/android",
--  "+components/safe_browsing/buildflags.h",
+   "+components/safe_browsing/buildflags.h",
 -  "+components/safe_browsing/content/browser",
 -  "+components/safe_browsing/content/common",
 -  "+components/safe_browsing/core/browser",
@@ -2900,6 +2900,28 @@
  
  SecurityStateTabHelper::SecurityStateTabHelper(
      content::WebContents* web_contents)
+--- a/chrome/browser/subresource_filter/chrome_content_subresource_filter_web_contents_helper_factory.cc
++++ b/chrome/browser/subresource_filter/chrome_content_subresource_filter_web_contents_helper_factory.cc
+@@ -7,7 +7,6 @@
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/subresource_filter/subresource_filter_profile_context_factory.h"
+-#include "components/safe_browsing/core/browser/db/database_manager.h"
+ #include "components/subresource_filter/content/browser/content_subresource_filter_web_contents_helper.h"
+ #include "components/subresource_filter/content/browser/ruleset_service.h"
+ 
+@@ -24,10 +23,7 @@ GetDatabaseManagerFromSafeBrowsingServic
+ 
+ void CreateSubresourceFilterWebContentsHelper(
+     content::WebContents* web_contents) {
+-  subresource_filter::RulesetService* ruleset_service =
+-      g_browser_process->subresource_filter_ruleset_service();
+-  subresource_filter::VerifiedRulesetDealer::Handle* dealer =
+-      ruleset_service ? ruleset_service->GetRulesetDealer() : nullptr;
++  subresource_filter::VerifiedRulesetDealer::Handle* dealer = nullptr;
+   subresource_filter::ContentSubresourceFilterWebContentsHelper::
+       CreateForWebContents(
+           web_contents,
 --- a/chrome/browser/ui/BUILD.gn
 +++ b/chrome/browser/ui/BUILD.gn
 @@ -396,7 +396,6 @@ static_library("ui") {
@@ -3055,6 +3077,16 @@
  #endif  // OS_WIN
  
  // Displays a dialog to notify the user that the extension installation is
+--- a/chrome/browser/ui/page_info/chrome_page_info_delegate.cc
++++ b/chrome/browser/ui/page_info/chrome_page_info_delegate.cc
+@@ -11,7 +11,6 @@
+ #include "chrome/browser/permissions/permission_decision_auto_blocker_factory.h"
+ #include "chrome/browser/permissions/permission_manager_factory.h"
+ #include "chrome/browser/profiles/profile.h"
+-#include "chrome/browser/safe_browsing/chrome_password_protection_service.h"
+ #include "chrome/browser/ssl/security_state_tab_helper.h"
+ #include "chrome/browser/ssl/stateful_ssl_host_state_delegate_factory.h"
+ #include "chrome/browser/subresource_filter/subresource_filter_profile_context_factory.h"
 --- a/chrome/browser/ui/tab_contents/chrome_web_contents_view_handle_drop.cc
 +++ b/chrome/browser/ui/tab_contents/chrome_web_contents_view_handle_drop.cc
 @@ -16,7 +16,6 @@
@@ -3065,96 +3097,7 @@
  #include "content/public/browser/web_contents.h"
  #include "content/public/browser/web_contents_observer.h"
  #include "content/public/browser/web_contents_view_delegate.h"
-@@ -25,88 +24,6 @@
- 
- namespace {
- 
--#if BUILDFLAG(FULL_SAFE_BROWSING)
--void CompletionCallback(
--    content::WebContentsViewDelegate::DropCompletionCallback callback,
--    const enterprise_connectors::ContentAnalysisDelegate::Data& data,
--    const enterprise_connectors::ContentAnalysisDelegate::Result& result) {
--  // If any result is negative, block the drop.
--  const auto all_true_fn = [](const auto& vec) {
--    return std::all_of(vec.cbegin(), vec.cend(), [](bool b) { return b; });
--  };
--  bool all_true =
--      all_true_fn(result.text_results) && all_true_fn(result.paths_results);
--
--  std::move(callback).Run(
--      all_true
--          ? content::WebContentsViewDelegate::DropCompletionResult::kContinue
--          : content::WebContentsViewDelegate::DropCompletionResult::kAbort);
--}
--
--enterprise_connectors::ContentAnalysisDelegate::Data GetPathsToScan(
--    const content::DropData& drop_data,
--    enterprise_connectors::ContentAnalysisDelegate::Data data) {
--  for (const auto& file : drop_data.filenames) {
--    base::File::Info info;
--
--    // Ignore the path if it's a symbolic link.
--    if (!base::GetFileInfo(file.path, &info) || info.is_symbolic_link)
--      continue;
--
--    // If the file is a directory, recursively add the files it holds to `data`.
--    if (info.is_directory) {
--      base::FileEnumerator file_enumerator(file.path, /*recursive=*/true,
--                                           base::FileEnumerator::FILES);
--      for (base::FilePath sub_path = file_enumerator.Next(); !sub_path.empty();
--           sub_path = file_enumerator.Next()) {
--        data.paths.push_back(sub_path);
--      }
--    } else {
--      data.paths.push_back(file.path);
--    }
--  }
--  return data;
--}
--#endif // BUILDFLAG(FULL_SAFE_BROWSING)
--
--// Helper class to handle WebContents being destroyed while files are opened in
--// the threadpool. This class deletes itself either when it's no longer needed
--// when ScanData is called, or when its corresponding web contents is destroyed
--// so its weak ptrs are invalidated.
--class HandleDropScanData : public content::WebContentsObserver {
-- public:
--  HandleDropScanData(
--      content::WebContents* web_contents,
--      content::WebContentsViewDelegate::DropCompletionCallback callback)
--      : content::WebContentsObserver(web_contents),
--        callback_(std::move(callback)) {}
--
--#if BUILDFLAG(FULL_SAFE_BROWSING)
--  void ScanData(
--      enterprise_connectors::ContentAnalysisDelegate::Data analysis_data) {
--    DCHECK(web_contents());
--
--    enterprise_connectors::ContentAnalysisDelegate::CreateForWebContents(
--        web_contents(), std::move(analysis_data),
--        base::BindOnce(&CompletionCallback, std::move(callback_)),
--        safe_browsing::DeepScanAccessPoint::DRAG_AND_DROP);
--
--    delete this;
--  }
--#endif // BUILDFLAG(FULL_SAFE_BROWSING)
--
--  void WebContentsDestroyed() override { delete this; }
--
--  base::WeakPtr<HandleDropScanData> GetWeakPtr() {
--    return weakptr_factory_.GetWeakPtr();
--  }
--
-- private:
--  content::WebContentsViewDelegate::DropCompletionCallback callback_;
--
--  base::WeakPtrFactory<HandleDropScanData> weakptr_factory_{this};
--};
--
- }  // namespace
- 
- void HandleOnPerformDrop(
-@@ -115,14 +32,12 @@ void HandleOnPerformDrop(
+@@ -115,14 +114,12 @@ void HandleOnPerformDrop(
      content::WebContentsViewDelegate::DropCompletionCallback callback) {
  #if BUILDFLAG(FULL_SAFE_BROWSING)
    enterprise_connectors::ContentAnalysisDelegate::Data data;
@@ -3281,6 +3224,26 @@
  #if defined(USE_AURA)
  #include "ui/aura/client/aura_constants.h"
  #include "ui/aura/window.h"
+--- a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
+@@ -77,8 +77,6 @@
+ #include "components/prefs/pref_service.h"
+ #include "components/reading_list/features/reading_list_switches.h"
+ #include "components/safe_browsing/buildflags.h"
+-#include "components/safe_browsing/content/browser/web_ui/safe_browsing_ui.h"
+-#include "components/safe_browsing/core/common/web_ui_constants.h"
+ #include "components/security_interstitials/content/connection_help_ui.h"
+ #include "components/security_interstitials/content/known_interception_disclosure_ui.h"
+ #include "components/security_interstitials/content/urls.h"
+@@ -634,8 +632,6 @@ WebUIFactoryFunction GetWebUIFactoryFunc
+     return &NewWebUI<PredictorsUI>;
+   if (url.host_piece() == chrome::kChromeUIQuotaInternalsHost)
+     return &NewWebUI<QuotaInternalsUI>;
+-  if (url.host_piece() == safe_browsing::kChromeUISafeBrowsingHost)
+-    return &NewWebUI<safe_browsing::SafeBrowsingUI>;
+   if (url.host_piece() == chrome::kChromeUISignInInternalsHost)
+     return &NewWebUI<SignInInternalsUI>;
+   if (url.host_piece() == chrome::kChromeUISupervisedUserPassphrasePageHost)
 --- a/chrome/browser/ui/webui/downloads/downloads_ui.cc
 +++ b/chrome/browser/ui/webui/downloads/downloads_ui.cc
 @@ -17,8 +17,6 @@
@@ -3292,7 +3255,7 @@
  #include "chrome/browser/ui/ui_features.h"
  #include "chrome/browser/ui/webui/downloads/downloads.mojom.h"
  #include "chrome/browser/ui/webui/downloads/downloads_dom_handler.h"
-@@ -63,12 +61,6 @@ content::WebUIDataSource* CreateDownload
+@@ -63,11 +61,7 @@ content::WebUIDataSource* CreateDownload
        source, base::make_span(kDownloadsResources, kDownloadsResourcesSize),
        IDR_DOWNLOADS_DOWNLOADS_HTML);
  
@@ -3301,11 +3264,11 @@
 -          profile)
 -          ->IsUnderAdvancedProtection();
 -  source->AddBoolean("requestsApVerdicts", requests_ap_verdicts);
--
++  source->AddBoolean("requestsApVerdicts", false);
+ 
    static constexpr webui::LocalizedString kStrings[] = {
        {"title", IDS_DOWNLOAD_TITLE},
-       {"searchResultsPlural", IDS_SEARCH_RESULTS_PLURAL},
-@@ -124,11 +116,8 @@ content::WebUIDataSource* CreateDownload
+@@ -124,11 +118,8 @@ content::WebUIDataSource* CreateDownload
  
    source->AddLocalizedString("dangerDownloadDesc",
                               IDS_BLOCK_REASON_DANGEROUS_DOWNLOAD);
@@ -4258,6 +4221,50 @@
        <part file="security_interstitials_strings.grdp" />
        <part file="security_state_strings.grdp" />
        <part file="send_tab_to_self_strings.grdp" />
+--- a/components/content_settings/core/browser/content_settings_registry.cc
++++ b/components/content_settings/core/browser/content_settings_registry.cc
+@@ -126,7 +126,7 @@ void ContentSettingsRegistry::Init() {
+   // WARNING: The string names of the permissions passed in below are used to
+   // generate preference names and should never be changed!
+ 
+-  Register(ContentSettingsType::COOKIES, "cookies", CONTENT_SETTING_SESSION_ONLY,
++  Register(ContentSettingsType::COOKIES, "cookies", CONTENT_SETTING_ALLOW,
+            WebsiteSettingsInfo::SYNCABLE,
+            AllowlistedSchemes(kChromeUIScheme, kChromeDevToolsScheme),
+            ValidSettings(CONTENT_SETTING_ALLOW, CONTENT_SETTING_BLOCK,
+--- a/components/page_info/BUILD.gn
++++ b/components/page_info/BUILD.gn
+@@ -25,9 +25,6 @@ static_library("page_info") {
+     "//components/permissions",
+     "//components/prefs",
+     "//components/safe_browsing:buildflags",
+-    "//components/safe_browsing/content/browser/password_protection",
+-    "//components/safe_browsing/core/browser/password_protection:password_protection_metrics_util",
+-    "//components/safe_browsing/core/common/proto:csd_proto",
+     "//components/security_interstitials/content:security_interstitial_page",
+     "//components/security_interstitials/core",
+     "//components/security_state/core",
+--- a/components/page_info/page_info.cc
++++ b/components/page_info/page_info.cc
+@@ -44,9 +44,6 @@
+ #endif
+ #include "build/chromeos_buildflags.h"
+ #include "components/safe_browsing/buildflags.h"
+-#include "components/safe_browsing/content/browser/password_protection/password_protection_service.h"
+-#include "components/safe_browsing/core/browser/password_protection/metrics_util.h"
+-#include "components/safe_browsing/core/common/proto/csd.pb.h"
+ #include "components/security_interstitials/content/stateful_ssl_host_state_delegate.h"
+ #include "components/signin/public/identity_manager/account_info.h"
+ #include "components/ssl_errors/error_info.h"
+@@ -74,8 +71,6 @@ using base::ASCIIToUTF16;
+ using base::UTF16ToUTF8;
+ using base::UTF8ToUTF16;
+ using content::BrowserThread;
+-using safe_browsing::LoginReputationClientResponse;
+-using safe_browsing::RequestOutcome;
+ 
+ namespace {
+ 
 --- a/components/password_manager/core/browser/BUILD.gn
 +++ b/components/password_manager/core/browser/BUILD.gn
 @@ -287,8 +287,6 @@ static_library("browser") {
@@ -4370,6 +4377,28 @@
    ukm::SourceId GetUkmSourceId() override;
    PasswordManagerMetricsRecorder* GetMetricsRecorder() override;
    signin::IdentityManager* GetIdentityManager() override;
+--- a/components/safe_browsing/content/browser/password_protection/password_protection_service.h
++++ b/components/safe_browsing/content/browser/password_protection/password_protection_service.h
+@@ -9,7 +9,6 @@
+ #include "components/password_manager/core/browser/password_manager_metrics_util.h"
+ #include "components/password_manager/core/browser/password_reuse_detector.h"
+ #include "components/safe_browsing/buildflags.h"
+-#include "components/safe_browsing/content/common/safe_browsing.mojom.h"
+ #include "components/safe_browsing/core/browser/password_protection/metrics_util.h"
+ #include "components/safe_browsing/core/browser/password_protection/password_protection_service_base.h"
+ #include "components/safe_browsing/core/common/proto/csd.pb.h"
+--- a/components/safe_browsing/core/browser/db/v4_get_hash_protocol_manager.cc
++++ b/components/safe_browsing/core/browser/db/v4_get_hash_protocol_manager.cc
+@@ -610,9 +610,6 @@ bool V4GetHashProtocolManager::ParseHash
+     FullHashInfo full_hash_info(match.threat().hash(), list_id,
+                                 positive_expiry);
+     ParseMetadata(match, &full_hash_info.metadata);
+-    TRACE_EVENT2("safe_browsing", "V4GetHashProtocolManager::ParseHashResponse",
+-                 "threat_type", full_hash_info.list_id.threat_type(),
+-                 "metadata", full_hash_info.metadata.ToTracedValue());
+     full_hash_infos->push_back(full_hash_info);
+   }
+   return true;
 --- a/components/search_engines/search_terms_data.cc
 +++ b/components/search_engines/search_terms_data.cc
 @@ -33,7 +33,7 @@ std::string SearchTermsData::GoogleBaseS
